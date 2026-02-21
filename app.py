@@ -6,146 +6,127 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # --- CONFIG ---
-st.set_page_config(page_title="LUMINA Wellness", layout="wide")
+st.set_page_config(page_title="BioMonitor Pro", layout="wide")
 
-# --- ZEN CLINIC CSS ---
+# --- STYLE CSS (LUXURY WELLNESS) ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;600&display=swap');
-
-    /* Tło i baza */
-    .stApp {
-        background: linear-gradient(180deg, #fdfbf7 0%, #f5f0e6 100%);
-        color: #4a4a4a;
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+    
+    html, body, [data-testid="stAppViewContainer"] {
+        background-color: #f8f9fa;
         font-family: 'Inter', sans-serif;
     }
-
-    /* Nagłówki - Elegancki Szeryf */
-    h1, h2, h3 {
-        font-family: 'Playfair Display', serif !important;
-        color: #2c3e50 !important;
-        font-weight: 400 !important;
-    }
-
-    /* Karty Metryk */
-    div[data-testid="stMetric"] {
-        background: white !important;
-        border: 1px solid #e9e0d2 !important;
-        border-radius: 2px !important; /* Kwadratowy, klasyczny look */
-        padding: 30px !important;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.02) !important;
-    }
-
-    /* Przyciski */
-    .stButton>button {
-        background-color: #2c3e50 !important;
-        color: #fdfbf7 !important;
-        border-radius: 0px !important;
-        border: none !important;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        font-size: 12px;
-        padding: 15px 30px;
-        transition: 0.4s;
-    }
-    .stButton>button:hover {
-        background-color: #d4af37 !important; /* Gold on hover */
-        box-shadow: 0 5px 15px rgba(212, 175, 55, 0.3);
-    }
-
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #ffffff;
-        border-right: 1px solid #e9e0d2;
-    }
-
-    /* Dataframe i Tabele */
-    .stDataFrame {
-        border: 1px solid #e9e0d2;
+    
+    .stMetric {
+        background: white;
+        border-radius: 15px;
+        padding: 15px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
     }
     
-    /* Ukrycie logo Streamlit */
-    footer {visibility: hidden;}
+    .sidebar-content {
+        padding: 20px;
+        background: #ffffff;
+    }
+    
+    .stButton>button {
+        background: #1a73e8 !important;
+        color: white !important;
+        border-radius: 10px !important;
+        border: none !important;
+        padding: 10px 20px !important;
+        width: 100%;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- DATA CONNECTION ---
+# --- DATA ENGINE ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_all = conn.read(ttl="0")
+
 if not df_all.empty:
     df_all['Data'] = pd.to_datetime(df_all['Data']).dt.date
 
-# --- HEADER ---
-st.markdown("<p style='text-align: center; letter-spacing: 6px; color: #bca07e; font-size: 14px;'>EST. 2024</p>", unsafe_allow_html=True)
-st.markdown("<h1 style='text-align: center; font-size: 3.5rem; margin-top: -20px;'>Lumina Wellness</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; font-style: italic; color: #7f8c8d;'>Personalizowany protokół zdrowia: Piotr & Natalia</p>", unsafe_allow_html=True)
-st.divider()
-
-# --- NAVIGATION & INPUT ---
+# --- SIDEBAR ---
 with st.sidebar:
-    st.markdown("### PANEL KLIENTA")
-    user = st.radio("Zalogowany profil:", ["Piotr", "Natalia"])
-    st.divider()
+    st.image("https://cdn-icons-png.flaticon.com/512/822/822143.png", width=80)
+    st.title("BioMonitor")
+    user = st.radio("Operator systemu:", ["Piotr", "Natalia"])
     
-    with st.expander("DODAJ NOWY POMIAR", expanded=False):
-        with st.form("entry_form"):
-            d = st.date_input("Data wizyty", datetime.now())
-            w = st.number_input("Masa ciała (kg)", min_value=40.0, step=0.1)
-            ds = st.selectbox("Dawka leku (mg)", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
+    st.divider()
+    with st.expander("📝 DODAJ NOWE POMIARY", expanded=True):
+        with st.form("medical_form", clear_on_submit=True):
+            d = st.date_input("Data", datetime.now())
+            w = st.number_input("Waga (kg)", min_value=40.0, step=0.1)
+            
+            st.markdown("**Ciśnienie tętnicze**")
+            c1, c2 = st.columns(2)
+            sys = c1.number_input("Skurczowe", value=120)
+            dia = c2.number_input("Rozkurczowe", value=80)
+            
+            st.markdown("**Protokół**")
+            ds = st.selectbox("Dawka (mg)", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
             mood = st.slider("Samopoczucie", 1, 10, 8)
-            note = st.text_input("Notatki / Uwagi")
-            if st.form_submit_button("ZAPISZ WPIS"):
-                new_row = pd.DataFrame([{"Użytkownik": user, "Data": d, "Waga": w, "Dawka": ds, "Samopoczucie": mood, "Notatki": note}])
-                conn.update(data=pd.concat([df_all, new_row], ignore_index=True))
+            
+            if st.form_submit_button("ZAPISZ W BAZIE"):
+                new_data = pd.DataFrame([{
+                    "Użytkownik": user, "Data": d, "Waga": w, 
+                    "Cisnienie_S": sys, "Cisnienie_D": dia, 
+                    "Dawka": ds, "Samopoczucie": mood
+                }])
+                conn.update(data=pd.concat([df_all, new_data], ignore_index=True))
+                st.balloons()
                 st.rerun()
 
-# --- ANALIZA ---
+# --- MAIN DASHBOARD ---
 df_u = df_all[df_all['Użytkownik'] == user].sort_values("Data") if not df_all.empty else pd.DataFrame()
 
+st.title(f"Raport Biometryczny: {user}")
+
 if not df_u.empty:
-    # Metryki
-    c1, c2, c3 = st.columns(3)
-    curr = df_u['Waga'].iloc[-1]
-    diff = curr - df_u['Waga'].iloc[0]
+    # --- METRYKI ---
+    m1, m2, m3, m4 = st.columns(4)
+    curr_w = df_u['Waga'].iloc[-1]
+    curr_s = int(df_u['Cisnienie_S'].iloc[-1])
+    curr_d = int(df_u['Cisnienie_D'].iloc[-1])
     
-    c1.metric("BIEŻĄCA MASA", f"{curr} kg", f"{diff:.1f} kg", delta_color="inverse")
-    c2.metric("OSTATNIA DAWKA", f"{df_u['Dawka'].iloc[-1]} mg")
-    c3.metric("DNI PROTOKOŁU", (datetime.now().date() - df_u['Data'].iloc[0]).days)
+    m1.metric("Masa Ciała", f"{curr_w} kg")
+    m2.metric("Ciśnienie", f"{curr_s}/{curr_d}", "Norma" if curr_s < 135 else "Podwyższone")
+    m3.metric("Ostatnia Dawka", f"{df_u['Dawka'].iloc[-1]} mg")
+    m4.metric("Dzień Kuracji", len(df_u))
 
-    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.divider()
 
-    # Główny wykres
-    st.markdown("### Historia Transformacji")
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=df_u['Data'], y=df_u['Waga'],
-        mode='lines+markers',
-        line=dict(color='#2c3e50', width=1),
-        marker=dict(size=8, color='#d4af37'),
-        name='Waga'
-    ))
-    fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        xaxis=dict(showgrid=False, linecolor='#e9e0d2'),
-        yaxis=dict(showgrid=True, gridcolor='#f0f0f0', linecolor='#e9e0d2'),
-        font=dict(family="Inter", size=12)
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    # --- WYKRESY ---
+    col_chart1, col_chart2 = st.columns(2)
 
-    # Porównanie i Historia
-    col_l, col_r = st.columns(2)
-    with col_l:
-        st.markdown("### Ostatnie logi")
-        st.dataframe(df_u.tail(5), use_container_width=True)
-    with col_r:
-        st.markdown("### Wspólna progresja")
-        fig_comp = px.line(df_all, x="Data", y="Waga", color="Użytkownik",
-                          color_discrete_map={"Piotr": "#2c3e50", "Natalia": "#d4af37"})
-        fig_comp.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig_comp, use_container_width=True)
+    with col_chart1:
+        st.subheader("📉 Trend spadku masy")
+        fig_w = px.line(df_u, x="Data", y="Waga", markers=True, 
+                         color_discrete_sequence=['#1a73e8'])
+        fig_w.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig_w, use_container_width=True)
+
+    with col_chart2:
+        st.subheader("❤️ Monitor ciśnienia")
+        # Wykres kardiologiczny z dwiema liniami
+        fig_p = go.Figure()
+        fig_p.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_S'], name="Skurczowe (SYS)",
+                                   line=dict(color='#e74c3c', width=3)))
+        fig_p.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_D'], name="Rozkurczowe (DIA)",
+                                   line=dict(color='#3498db', width=3)))
+        
+        # Dodanie strefy normy ciśnienia
+        fig_p.add_hrect(y0=60, y1=120, fillcolor="green", opacity=0.1, layer="below", line_width=0)
+        
+        fig_p.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+        st.plotly_chart(fig_p, use_container_width=True)
+
+    # --- TABELA ---
+    st.subheader("📋 Pełna historia medyczna")
+    st.dataframe(df_u.sort_values("Data", ascending=False), use_container_width=True)
 
 else:
-    st.info("Oczekiwanie na pierwszą synchronizację danych...")
-
-st.markdown("<br><hr><p style='text-align: center; color: #95a5a6; font-size: 12px;'>LUMINA HEALTH CARE | DISCRETION & PROGRESS</p>", unsafe_allow_html=True)
+    st.info("Oczekiwanie na pierwsze dane biometryczne...")
