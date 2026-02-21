@@ -4,86 +4,93 @@ import pandas as pd
 import plotly.express as px
 from datetime import datetime
 
-# --- KONFIGURACJA STRONY ---
-st.set_page_config(page_title="BioTracker Pro", page_icon="⚖️", layout="wide")
+# --- KONFIGURACJA ---
+st.set_page_config(page_title="BioTracker: Piotr i Natalia", page_icon="💊", layout="wide")
 
-# --- CUSTOM CSS (Design) ---
+# --- CUSTOM CSS (Dla lepszego wyglądu) ---
 st.markdown("""
     <style>
-    .main { background-color: #f8f9fa; }
-    div[data-testid="stMetricValue"] { font-size: 2rem; color: #2E7D32; }
-    .stButton>button { width: 100%; border-radius: 20px; background-color: #2E7D32; color: white; }
-    .card { background-color: white; padding: 20px; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+    [data-testid="stSidebar"] { background-color: #f0f2f6; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- POŁĄCZENIE Z DANYMI ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-def load_data():
-    return conn.read(ttl="0") # ttl=0 wymusza odświeżenie danych przy każdym przeładowaniu
+def get_data():
+    return conn.read(ttl="0")
 
-df = load_data()
-df['Data'] = pd.to_datetime(df['Data'])
+df_all = get_data()
 
-# --- SIDEBAR (Wprowadzanie danych) ---
+# --- SIDEBAR: WYBÓR PROFILU I WPISYWANIE ---
 with st.sidebar:
-    st.header("➕ Nowy pomiar")
-    with st.form("add_entry", clear_on_submit=True):
+    st.title("👤 Profil")
+    user = st.radio("Kto używa aplikacji?", ["Piotr", "Natalia"])
+    st.divider()
+    
+    st.header(f"➕ Nowy wpis: {user}")
+    with st.form("entry_form", clear_on_submit=True):
         date = st.date_input("Data", datetime.now())
-        weight = st.number_input("Waga (kg)", min_value=40.0, max_value=200.0, step=0.1)
-        dose = st.selectbox("Dawka (mg)", [0.25, 0.5, 1.0, 1.5, 2.0])
-        mood = st.slider("Samopoczucie", 1, 5, 3)
-        note = st.text_area("Notatki")
-        submit = st.form_submit_button("Zapisz w dzienniku")
+        weight = st.number_input("Waga (kg)", min_value=40.0, step=0.1)
+        dose = st.selectbox("Dawka Ozempic (mg)", [0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
+        mood = st.slider("Samopoczucie (1-5)", 1, 5, 3)
+        note = st.text_area("Notatki / Skutki uboczne")
+        submit = st.form_submit_button("Zapisz w bazie")
 
     if submit:
-        # Tutaj logika dopisywania do Google Sheets
-        new_data = pd.DataFrame([{"Data": date, "Waga": weight, "Dawka": dose, "Samopoczucie": mood, "Notatki": note}])
-        updated_df = pd.concat([df, new_data], ignore_index=True)
+        new_row = pd.DataFrame([{
+            "Użytkownik": user,
+            "Data": date.strftime('%Y-%m-%d'),
+            "Waga": weight,
+            "Dawka": dose,
+            "Samopoczucie": mood,
+            "Notatki": note
+        }])
+        updated_df = pd.concat([df_all, new_row], ignore_index=True)
         conn.update(data=updated_df)
-        st.success("Dane zapisane!")
+        st.success(f"Brawo {user}! Dane zapisane.")
         st.rerun()
 
-# --- GŁÓWNY DASHBOARD ---
-st.title("🛡️ BioTracker: Kuracja GLP-1")
+# --- FILTROWANIE DANYCH DLA WIDOKU ---
+df_user = df_all[df_all['Użytkownik'] == user].copy() if not df_all.empty else pd.DataFrame()
 
-# Sekcja Metryk
-col1, col2, col3, col4 = st.columns(4)
-if not df.empty:
-    current_w = df['Waga'].iloc[-1]
-    start_w = df['Waga'].iloc[0]
+# --- GŁÓWNY DASHBOARD ---
+st.title(f"📊 Dziennik Kuracji: {user}")
+
+if not df_user.empty:
+    # Metryki na górze
+    m1, m2, m3 = st.columns(3)
+    current_w = df_user['Waga'].iloc[-1]
+    start_w = df_user['Waga'].iloc[0]
     diff = current_w - start_w
     
-    col1.metric("Waga aktualna", f"{current_w} kg", f"{diff:.1f} kg", delta_color="inverse")
-    col2.metric("Ostatnia dawka", f"{df['Dawka'].iloc[-1]} mg")
-    col3.metric("Dni kuracji", (datetime.now() - df['Data'].iloc[0]).days)
-    col4.metric("Cel (przykład)", "85 kg", f"{current_w - 85:.1f} kg do celu")
+    m1.metric("Waga aktualna", f"{current_w} kg", f"{diff:.1f} kg", delta_color="inverse")
+    m2.metric("Twoja ostatnia dawka", f"{df_user['Dawka'].iloc[-1]} mg")
+    m3.metric("Postępy", f"{len(df_user)} wpisów")
 
-st.divider()
+    # Zakładki
+    tab1, tab2, tab3 = st.tabs(["📈 Twój Trend", "🏆 Porównanie", "📋 Historia"])
 
-# Sekcja Wykresów
-tab1, tab2 = st.tabs(["📈 Analiza Trendu", "🗓️ Historia Wpisów"])
-
-with tab1:
-    if not df.empty:
-        # Wykres Wagi (Plotly)
-        fig = px.line(df, x="Data", y="Waga", title="Postęp redukcji wagi",
+    with tab1:
+        fig = px.line(df_user, x="Data", y="Waga", title="Twoja droga do celu",
                       markers=True, line_shape="spline", color_discrete_sequence=["#2E7D32"])
-        fig.update_layout(hovermode="x unified", plot_bgcolor="rgba(0,0,0,0)")
         st.plotly_chart(fig, use_container_width=True)
 
-        # Wykres słupkowy Dawka vs Samopoczucie
-        fig2 = px.bar(df, x="Data", y="Dawka", color="Samopoczucie", 
-                      title="Dawkowanie a samopoczucie",
-                      color_continuous_scale=px.colors.sequential.Greens)
-        st.plotly_chart(fig2, use_container_width=True)
+    with tab2:
+        st.subheader("Piotr vs Natalia")
+        if not df_all.empty:
+            # Wykres porównawczy (wszystkie dane)
+            fig_comp = px.line(df_all, x="Data", y="Waga", color="Użytkownik",
+                               title="Wspólny postęp (kg)", markers=True)
+            st.plotly_chart(fig_comp, use_container_width=True)
+        else:
+            st.write("Potrzeba więcej danych od Was obojga.")
 
-with tab2:
-    st.dataframe(df.sort_values(by="Data", ascending=False), use_container_width=True)
+    with tab3:
+        st.dataframe(df_user.sort_values(by="Data", ascending=False), use_container_width=True)
+else:
+    st.info(f"Cześć {user}! Tutaj pojawią się Twoje postępy. Dodaj swój pierwszy pomiar w panelu po lewej stronie.")
 
-# Pasek postępu do celu
-if not df.empty:
-    progress = 0.4 # Tu możesz wyliczyć dynamicznie: (start-obecna)/(start-cel)
-    st.write("### Postęp do celu sylwetkowego")
-    st.progress(progress)
+# Stopka motywacyjna
+st.caption("Pamiętajcie o piciu dużej ilości wody i białku! Powodzenia! 💪")
