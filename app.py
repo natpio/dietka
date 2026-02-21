@@ -6,180 +6,146 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # --- CONFIG ---
-st.set_page_config(page_title="BIO-SYNC PRO", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="LUMINA Wellness", layout="wide")
 
-# --- CYBERPUNK ULTIMATE CSS ---
+# --- ZEN CLINIC CSS ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;500;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;600&display=swap');
 
-    /* Tło i główna czcionka */
+    /* Tło i baza */
     .stApp {
-        background: radial-gradient(circle at center, #0a0f1e 0%, #03050a 100%);
-        color: #00f2ff;
-        font-family: 'Rajdhani', sans-serif;
+        background: linear-gradient(180deg, #fdfbf7 0%, #f5f0e6 100%);
+        color: #4a4a4a;
+        font-family: 'Inter', sans-serif;
     }
 
-    /* Ukrycie domyślnych elementów */
-    header, footer {visibility: hidden;}
-    
-    /* Neonowe karty */
-    .bio-card {
-        background: rgba(0, 242, 255, 0.03);
-        border: 1px solid rgba(0, 242, 255, 0.2);
-        border-radius: 20px;
-        padding: 25px;
-        box-shadow: 0 0 20px rgba(0, 242, 255, 0.05);
-        margin-bottom: 20px;
+    /* Nagłówki - Elegancki Szeryf */
+    h1, h2, h3 {
+        font-family: 'Playfair Display', serif !important;
+        color: #2c3e50 !important;
+        font-weight: 400 !important;
     }
 
-    /* Statystyki - Wielkie liczby */
-    .stat-val {
-        font-size: 3rem;
-        font-weight: 700;
-        color: #fff;
-        text-shadow: 0 0 15px rgba(0, 242, 255, 0.5);
-        line-height: 1;
-    }
-    .stat-label {
-        font-size: 0.9rem;
-        text-transform: uppercase;
-        color: #00f2ff;
-        letter-spacing: 2px;
+    /* Karty Metryk */
+    div[data-testid="stMetric"] {
+        background: white !important;
+        border: 1px solid #e9e0d2 !important;
+        border-radius: 2px !important; /* Kwadratowy, klasyczny look */
+        padding: 30px !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.02) !important;
     }
 
-    /* Sidebar Customization */
-    [data-testid="stSidebar"] {
-        background-color: #03050a;
-        border-right: 1px solid #00f2ff33;
-    }
-
-    /* Przycisk Akcji */
+    /* Przyciski */
     .stButton>button {
-        background: transparent;
-        border: 2px solid #00f2ff !important;
-        color: #00f2ff !important;
+        background-color: #2c3e50 !important;
+        color: #fdfbf7 !important;
         border-radius: 0px !important;
+        border: none !important;
+        letter-spacing: 2px;
         text-transform: uppercase;
-        font-weight: 700;
-        letter-spacing: 3px;
-        transition: all 0.3s;
-        width: 100%;
+        font-size: 12px;
+        padding: 15px 30px;
+        transition: 0.4s;
     }
     .stButton>button:hover {
-        background: #00f2ff !important;
-        color: #000 !important;
-        box-shadow: 0 0 30px #00f2ff;
+        background-color: #d4af37 !important; /* Gold on hover */
+        box-shadow: 0 5px 15px rgba(212, 175, 55, 0.3);
     }
 
-    /* Wykresy */
-    .js-plotly-plot {
-        filter: drop-shadow(0 0 10px rgba(0, 242, 255, 0.1));
+    /* Sidebar */
+    [data-testid="stSidebar"] {
+        background-color: #ffffff;
+        border-right: 1px solid #e9e0d2;
     }
+
+    /* Dataframe i Tabele */
+    .stDataFrame {
+        border: 1px solid #e9e0d2;
+    }
+    
+    /* Ukrycie logo Streamlit */
+    footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-# --- DATA ENGINE ---
+# --- DATA CONNECTION ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_all = conn.read(ttl="0")
 if not df_all.empty:
     df_all['Data'] = pd.to_datetime(df_all['Data']).dt.date
 
-# --- HEADER & NAVIGATION ---
-col_head1, col_head2 = st.columns([2, 1])
-with col_head1:
-    st.markdown("<h1 style='font-size: 4rem; margin-bottom: 0;'>BIO-SYNC</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='letter-spacing: 5px; color: #666;'>OZEMPIC PROTOCOL v4.0</p>", unsafe_allow_html=True)
-
-with col_head2:
-    user = st.selectbox("Wybierz Operatora:", ["Piotr", "Natalia"])
-
+# --- HEADER ---
+st.markdown("<p style='text-align: center; letter-spacing: 6px; color: #bca07e; font-size: 14px;'>EST. 2024</p>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; font-size: 3.5rem; margin-top: -20px;'>Lumina Wellness</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; font-style: italic; color: #7f8c8d;'>Personalizowany protokół zdrowia: Piotr & Natalia</p>", unsafe_allow_html=True)
 st.divider()
 
-# --- SIDEBAR (LOGOWANIE DANYCH) ---
+# --- NAVIGATION & INPUT ---
 with st.sidebar:
-    st.markdown("### SYSTEM INPUT")
-    with st.form("new_entry", clear_on_submit=True):
-        d = st.date_input("DZIEŃ CYKLU", datetime.now())
-        w = st.number_input("MASA CIAŁA (KG)", min_value=40.0, step=0.1)
-        ds = st.select_slider("POZIOM PROTOKOŁU (MG)", options=[0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
-        mood = st.slider("STATUS BIO (1-10)", 1, 10, 7)
-        note = st.text_input("UWAGI KLINICZNE")
-        sub = st.form_submit_button("PRZEŚLIJ DANE")
-        
-        if sub:
-            new_data = pd.DataFrame([{"Użytkownik": user, "Data": d, "Waga": w, "Dawka": ds, "Samopoczucie": mood, "Notatki": note}])
-            conn.update(data=pd.concat([df_all, new_data], ignore_index=True))
-            st.success("Synchronizacja zakończona.")
-            st.rerun()
+    st.markdown("### PANEL KLIENTA")
+    user = st.radio("Zalogowany profil:", ["Piotr", "Natalia"])
+    st.divider()
+    
+    with st.expander("DODAJ NOWY POMIAR", expanded=False):
+        with st.form("entry_form"):
+            d = st.date_input("Data wizyty", datetime.now())
+            w = st.number_input("Masa ciała (kg)", min_value=40.0, step=0.1)
+            ds = st.selectbox("Dawka leku (mg)", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
+            mood = st.slider("Samopoczucie", 1, 10, 8)
+            note = st.text_input("Notatki / Uwagi")
+            if st.form_submit_button("ZAPISZ WPIS"):
+                new_row = pd.DataFrame([{"Użytkownik": user, "Data": d, "Waga": w, "Dawka": ds, "Samopoczucie": mood, "Notatki": note}])
+                conn.update(data=pd.concat([df_all, new_row], ignore_index=True))
+                st.rerun()
 
-# --- DASHBOARD LOGIC ---
+# --- ANALIZA ---
 df_u = df_all[df_all['Użytkownik'] == user].sort_values("Data") if not df_all.empty else pd.DataFrame()
 
 if not df_u.empty:
-    # --- TOP METRICS (BIG & BOLD) ---
-    c1, c2, c3, c4 = st.columns(4)
-    
+    # Metryki
+    c1, c2, c3 = st.columns(3)
     curr = df_u['Waga'].iloc[-1]
-    start = df_u['Waga'].iloc[0]
-    total_loss = curr - start
+    diff = curr - df_u['Waga'].iloc[0]
     
-    with c1:
-        st.markdown(f"<div class='stat-label'>Masa Bieżąca</div><div class='stat-val'>{curr}</div><div style='color:#00f2ff'>KG</div>", unsafe_allow_html=True)
-    with c2:
-        color = "#ff4b4b" if total_loss > 0 else "#00f2ff"
-        st.markdown(f"<div class='stat-label'>Zmiana Całkowita</div><div class='stat-val' style='color:{color}'>{total_loss:.1f}</div><div style='color:{color}'>KG</div>", unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"<div class='stat-label'>Protokół</div><div class='stat-val'>{df_u['Dawka'].iloc[-1]}</div><div style='color:#00f2ff'>MG</div>", unsafe_allow_html=True)
-    with c4:
-        st.markdown(f"<div class='stat-label'>Dzień</div><div class='stat-val'>{(datetime.now().date() - df_u['Data'].iloc[0]).days}</div><div style='color:#00f2ff'>TRWANIA</div>", unsafe_allow_html=True)
+    c1.metric("BIEŻĄCA MASA", f"{curr} kg", f"{diff:.1f} kg", delta_color="inverse")
+    c2.metric("OSTATNIA DAWKA", f"{df_u['Dawka'].iloc[-1]} mg")
+    c3.metric("DNI PROTOKOŁU", (datetime.now().date() - df_u['Data'].iloc[0]).days)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<br><br>", unsafe_allow_html=True)
 
-    # --- MAIN CHART ---
-    st.markdown("<div class='bio-card'>", unsafe_allow_html=True)
-    st.markdown("### TRAJEKTORIA REDUKCJI")
-    
-    # Customowy wykres Plotly
+    # Główny wykres
+    st.markdown("### Historia Transformacji")
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=df_u['Data'], y=df_u['Waga'],
         mode='lines+markers',
-        line=dict(color='#00f2ff', width=4),
-        marker=dict(size=10, color='#fff', line=dict(width=2, color='#00f2ff')),
-        fill='tozeroy',
-        fillcolor='rgba(0, 242, 255, 0.05)',
+        line=dict(color='#2c3e50', width=1),
+        marker=dict(size=8, color='#d4af37'),
         name='Waga'
     ))
-    
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(l=0, r=0, t=0, b=0),
-        xaxis=dict(showgrid=False, color='#444'),
-        yaxis=dict(showgrid=True, gridcolor='#111', color='#444'),
-        hovermode="x unified"
+        xaxis=dict(showgrid=False, linecolor='#e9e0d2'),
+        yaxis=dict(showgrid=True, gridcolor='#f0f0f0', linecolor='#e9e0d2'),
+        font=dict(family="Inter", size=12)
     )
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.plotly_chart(fig, use_container_width=True)
 
-    # --- LOWER SECTION ---
-    col_low1, col_low2 = st.columns([1, 1])
-    
-    with col_low1:
-        st.markdown("<div class='bio-card'>", unsafe_allow_html=True)
-        st.markdown("### HISTORIA LOGÓW")
-        st.dataframe(df_u.sort_values("Data", ascending=False)[["Data", "Waga", "Dawka", "Samopoczucie"]], use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-    with col_low2:
-        st.markdown("<div class='bio-card'>", unsafe_allow_html=True)
-        st.markdown("### PROTOKÓŁ WSPÓLNY (DUAL-SYNC)")
+    # Porównanie i Historia
+    col_l, col_r = st.columns(2)
+    with col_l:
+        st.markdown("### Ostatnie logi")
+        st.dataframe(df_u.tail(5), use_container_width=True)
+    with col_r:
+        st.markdown("### Wspólna progresja")
         fig_comp = px.line(df_all, x="Data", y="Waga", color="Użytkownik",
-                          color_discrete_map={"Piotr": "#00f2ff", "Natalia": "#ff00ff"})
-        fig_comp.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color="#666"))
-        st.plotly_chart(fig_comp, use_container_width=True, config={'displayModeBar': False})
-        st.markdown("</div>", unsafe_allow_html=True)
+                          color_discrete_map={"Piotr": "#2c3e50", "Natalia": "#d4af37"})
+        fig_comp.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+        st.plotly_chart(fig_comp, use_container_width=True)
 
 else:
-    st.markdown("<h2 style='text-align:center; margin-top:100px;'>SYSTEM OFFLINE. OCZEKIWANIE NA INICJACJĘ DANYCH...</h2>", unsafe_allow_html=True)
+    st.info("Oczekiwanie na pierwszą synchronizację danych...")
+
+st.markdown("<br><hr><p style='text-align: center; color: #95a5a6; font-size: 12px;'>LUMINA HEALTH CARE | DISCRETION & PROGRESS</p>", unsafe_allow_html=True)
