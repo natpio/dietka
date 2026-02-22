@@ -5,44 +5,44 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # --- CONFIG ---
-st.set_page_config(page_title="Lumina Vital Monitor", layout="wide")
+st.set_page_config(page_title="Wellness Vital Monitor", layout="wide", page_icon="🌿")
 
-# --- STYLE CSS (DARK MEDICAL UI) ---
+# --- WELLNESS STYLE CSS ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@200;400;600&family=JetBrains+Mono&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Quicksand:wght@500&display=swap');
 
     .stApp {
-        background-color: #0a0c10;
-        color: #e6edf3;
-        font-family: 'Outfit', sans-serif;
+        background: linear-gradient(135deg, #fdfcfb 0%, #e2d1c3 100%);
+        color: #4A4E4D;
+        font-family: 'Inter', sans-serif;
     }
 
-    /* Karta parametrów */
+    /* Karty Metryk Wellness */
     div[data-testid="stMetric"] {
-        background: rgba(255, 255, 255, 0.02) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 20px !important;
+        background: rgba(255, 255, 255, 0.7) !important;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.5) !important;
+        border-radius: 25px !important;
         padding: 20px !important;
+        box-shadow: 0 8px 32px rgba(31, 38, 135, 0.05) !important;
     }
 
-    /* Animacja pulsu tętna */
-    .pulse-dot {
-        height: 10px; width: 10px;
-        background-color: #ff3e3e;
-        border-radius: 50%;
-        display: inline-block;
-        box-shadow: 0 0 10px #ff3e3e;
-        animation: pulse 1s infinite;
-        margin-right: 10px;
+    h1 {
+        font-family: 'Quicksand', sans-serif;
+        color: #5D6D66;
+        font-weight: 500;
+        text-align: center;
+        letter-spacing: -1px;
     }
-    @keyframes pulse {
-        0% { transform: scale(1); opacity: 1; }
-        50% { transform: scale(1.5); opacity: 0.5; }
-        100% { transform: scale(1); opacity: 1; }
+    
+    .stButton>button {
+        background-color: #7A8B84 !important;
+        border-radius: 15px !important;
+        color: white !important;
+        border: none !important;
     }
 
-    h1 { font-family: 'JetBrains Mono', monospace; font-weight: 100; color: #00d4ff; text-align: center; }
     header, footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
@@ -51,16 +51,23 @@ st.markdown("""
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_all = conn.read(ttl="0")
 
+# --- NAPRAWA KOLUMN (KLUCZOWE!) ---
 if not df_all.empty:
+    # Standaryzacja nazw kolumn, aby uniknąć KeyError
+    df_all.columns = [c.strip() for c in df_all.columns]
     df_all['Data'] = pd.to_datetime(df_all['Data']).dt.date
-    # Konwersja 3 parametrów + reszta
-    cols = ['Waga', 'Cisnienie_S', 'Cisnienie_D', 'Tetno', 'Dawka']
-    for c in cols:
-        if c in df_all.columns:
-            df_all[c] = pd.to_numeric(df_all[c], errors='coerce')
+    
+    # Bezpieczne wymuszenie typów numerycznych
+    num_cols = ['Waga', 'Cisnienie_S', 'Cisnienie_D', 'Tetno', 'Dawka']
+    for col in num_cols:
+        if col in df_all.columns:
+            df_all[col] = pd.to_numeric(df_all[col], errors='coerce')
+        else:
+            # Jeśli kolumny brakuje, stwórz ją z NaN, żeby kod się nie wywalił
+            df_all[col] = None
 
-# --- HEADER ---
-st.markdown("<h1><span class='pulse-dot'></span>Vital intelligence</h1>", unsafe_allow_html=True)
+# --- UI ---
+st.markdown("<h1>🌿 Vital Ritual</h1>", unsafe_allow_html=True)
 user = st.segmented_control("", ["Piotr", "Natalia"], default="Piotr")
 df_u = df_all[df_all['Użytkownik'] == user].sort_values("Data") if not df_all.empty else pd.DataFrame()
 
@@ -69,68 +76,69 @@ if not df_u.empty:
     m1, m2, m3, m4 = st.columns(4)
     last = df_u.iloc[-1]
     
-    m1.metric("WAGA", f"{last['Waga']:.1f} kg")
-    m2.metric("CIŚNIENIE", f"{int(last['Cisnienie_S'])}/{int(last['Cisnienie_D'])}")
-    m3.metric("TĘTNO (BPM)", f"{int(last['Tetno'])}" if not pd.isna(last['Tetno']) else "--")
-    m4.metric("DAWKA", f"{last['Dawka']} mg")
+    m1.metric("WAGA", f"{last.get('Waga', 0):.1f} kg")
+    
+    # Bezpieczne wyświetlanie Ciśnienia
+    sys = last.get('Cisnienie_S')
+    dia = last.get('Cisnienie_D')
+    m2.metric("CIŚNIENIE", f"{int(sys)}/{int(dia)}" if pd.notnull(sys) else "--")
+    
+    # Bezpieczne wyświetlanie Tętna
+    hr = last.get('Tetno')
+    m3.metric("TĘTNO", f"{int(hr)} BPM" if pd.notnull(hr) else "Brak kolumny")
+    
+    m4.metric("DAWKA", f"{last.get('Dawka', 0)} mg")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- WYKRES "TRI-METRIC MONITOR" ---
+    # --- WYKRES (WELLNESS STYLE) ---
     fig = go.Figure()
-
-    # 1. Skurczowe (Górna granica)
-    fig.add_trace(go.Scatter(
-        x=df_u['Data'], y=df_u['Cisnienie_S'],
-        name="Skurczowe (SYS)",
-        line=dict(color='#00d4ff', width=3, shape='spline'),
-        mode='lines+markers'
-    ))
-
-    # 2. Rozkurczowe (Dolna granica)
-    fig.add_trace(go.Scatter(
-        x=df_u['Data'], y=df_u['Cisnienie_D'],
-        name="Rozkurczowe (DIA)",
-        line=dict(color='#00ff88', width=2, shape='spline'),
-        mode='lines+markers'
-    ))
-
-    # 3. Tętno (Jako słupki w tle lub kropki)
-    fig.add_trace(go.Bar(
-        x=df_u['Data'], y=df_u['Tetno'],
-        name="Tętno (BPM)",
-        marker_color='rgba(255, 62, 62, 0.2)',
-        width=80000000 # dostosowanie szerokości słupków do daty
-    ))
+    
+    # Skurczowe
+    fig.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_S'], name="Skurczowe", 
+                             line=dict(color='#D98E73', width=3, shape='spline')))
+    # Rozkurczowe
+    fig.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_D'], name="Rozkurczowe", 
+                             line=dict(color='#7A8B84', width=3, shape='spline')))
+    # Tętno (jako kropki z linią pomocniczą)
+    fig.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Tetno'], name="Tętno", 
+                             mode='markers+lines', line=dict(dash='dot', color='#A5A5A5', width=1),
+                             marker=dict(size=8, color='#D98E73')))
 
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        height=500, margin=dict(l=0,r=0,t=20,b=0),
-        legend=dict(orientation="h", y=1.1, x=1),
+        height=450, margin=dict(l=10,r=10,t=20,b=10),
+        legend=dict(orientation="h", y=1.1),
         xaxis=dict(showgrid=False),
-        yaxis=dict(gridcolor='rgba(255,255,255,0.05)', title="Wartości Biometryczne")
+        yaxis=dict(gridcolor='rgba(0,0,0,0.05)')
     )
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    st.plotly_chart(fig, use_container_width=True)
 
-# --- INPUT ---
+# --- PANEL AKCJI ---
 st.markdown("<br>", unsafe_allow_html=True)
-col_l, col_r = st.columns(2)
+c_left, c_right = st.columns(2)
 
-with col_l:
+with c_left:
     with st.popover("➕ NOWY POMIAR", use_container_width=True):
-        with st.form("vital_form"):
+        with st.form("wellness_vital_form"):
             d = st.date_input("Data", datetime.now())
             w = st.number_input("Waga", step=0.1)
-            c1, c2, c3 = st.columns(3)
-            s = c1.number_input("SYS", value=120)
-            di = c2.number_input("DIA", value=80)
-            t = c3.number_input("Tętno", value=70)
-            ds = st.selectbox("Dawka", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
+            col_s, col_d, col_t = st.columns(3)
+            sys_val = col_s.number_input("SYS", value=120)
+            dia_val = col_d.number_input("DIA", value=80)
+            hr_val = col_t.number_input("Tętno", value=70)
+            dose = st.selectbox("Dawka (mg)", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
+            note = st.text_input("Notatki")
+            
             if st.form_submit_button("ZAPISZ"):
-                new_row = pd.DataFrame([{"Użytkownik": user, "Data": d, "Waga": w, "Cisnienie_S": s, "Cisnienie_D": di, "Tetno": t, "Dawka": ds}])
-                conn.update(data=pd.concat([df_all, new_row], ignore_index=True))
+                new_data = pd.DataFrame([{
+                    "Użytkownik": user, "Data": d, "Waga": w, 
+                    "Cisnienie_S": sys_val, "Cisnienie_D": dia_val, 
+                    "Tetno": hr_val, "Dawka": dose, "Notatki": note
+                }])
+                conn.update(data=pd.concat([df_all, new_data], ignore_index=True))
                 st.rerun()
 
-with col_r:
-    with st.popover("📑 LOGI", use_container_width=True):
+with c_right:
+    with st.popover("📑 HISTORIA", use_container_width=True):
         st.dataframe(df_u.sort_values("Data", ascending=False), use_container_width=True)
