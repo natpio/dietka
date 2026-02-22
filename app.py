@@ -5,211 +5,152 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # --- KONFIGURACJA STRONY ---
-st.set_page_config(
-    page_title="The Sanctuary 2.0 | Vital Rituals",
-    layout="wide",
-    page_icon="🌿"
-)
+st.set_page_config(page_title="The Sanctuary 2.1 | Longevity Hub", layout="wide", page_icon="🌿")
 
-# --- ORGANIC SANCTUARY STYLE (FULL CSS) ---
+# --- CSS: ZEN CLINIC STYLE ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&family=Inter:wght@300;400;600&display=swap');
-
     .stApp {
-        background: linear-gradient(rgba(242, 236, 228, 0.85), rgba(242, 236, 228, 0.85)), 
-                    url('https://images.unsplash.com/photo-1540555700478-4be289fbecef?q=80&w=2070&auto=format&fit=crop');
+        background: linear-gradient(rgba(242, 236, 228, 0.9), rgba(242, 236, 228, 0.9)), 
+                    url('https://images.unsplash.com/photo-1544161515-4ab6ce6db874?q=80&w=2070');
         background-size: cover; background-attachment: fixed;
         color: #5d5750; font-family: 'Inter', sans-serif;
     }
-
     .sanctuary-title {
         font-family: 'Playfair Display', serif; font-size: 3.5rem; font-style: italic;
-        text-align: center; color: #4a4540; padding: 30px 0 5px 0;
+        text-align: center; color: #4a4540; padding: 20px 0 0 0;
     }
-
     .sanctuary-subtitle {
-        text-align: center; font-size: 0.8rem; letter-spacing: 4px; color: #8c857e;
+        text-align: center; font-size: 0.8rem; letter-spacing: 5px; color: #8c857e;
         margin-bottom: 30px; text-transform: uppercase;
     }
-
     div[data-testid="stMetric"] {
-        background: rgba(255, 255, 255, 0.5) !important;
-        backdrop-filter: blur(15px); border-radius: 30px !important;
-        padding: 20px !important; box-shadow: 0 10px 30px rgba(0,0,0,0.03) !important;
-        border: 1px solid rgba(255, 255, 255, 0.8) !important;
+        background: rgba(255, 255, 255, 0.6) !important;
+        backdrop-filter: blur(15px); border-radius: 25px !important;
+        padding: 20px !important; border: 1px solid rgba(255, 255, 255, 0.8) !important;
     }
-
-    .status-norm { color: #7c8370; font-weight: 600; border-bottom: 2px solid #7c8370; }
-    .status-warn { color: #d98e73; font-weight: 600; border-bottom: 2px solid #d98e73; }
-    .status-alert { color: #b04b4b; font-weight: 600; border-bottom: 2px solid #b04b4b; }
-
-    .stTabs [data-baseweb="tab-list"] { gap: 30px; justify-content: center; border-bottom: none; }
-    .stTabs [data-baseweb="tab"] { text-transform: uppercase; letter-spacing: 2px; font-size: 0.8rem; color: #8c857e !important; }
-    .stTabs [aria-selected="true"] { color: #5d5750 !important; font-weight: 600 !important; border-bottom: 3px solid #7c8370 !important; }
-
-    .stButton>button {
-        background: #7c8370 !important; color: white !important;
-        border-radius: 50px !important; padding: 12px 35px !important;
-        border: none !important; transition: 0.4s; letter-spacing: 1px;
+    .analysis-card {
+        background: rgba(124, 131, 112, 0.1); padding: 15px; border-radius: 15px;
+        border-left: 4px solid #7c8370; margin: 10px 0; font-size: 0.9rem;
     }
-
-    .report-card {
-        background: white; padding: 20px; border-radius: 15px;
-        border-left: 6px solid #7c8370; margin-bottom: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    }
-
     header, footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-# --- FUNKCJE POMOCNICZE ---
+# --- LOGIKA MATEMATYCZNA ---
 def safe_val(val, default=0.0):
-    try:
-        if pd.isna(val) or val == "" or val is None: return float(default)
-        return float(val)
+    try: return float(val) if pd.notnull(val) and val != "" else float(default)
     except: return float(default)
 
-def safe_int(val, default=0):
-    try:
-        if pd.isna(val) or val == "" or val is None: return int(default)
-        return int(float(val))
-    except: return int(default)
+def calc_advanced_bp(sys, dia):
+    s, d = safe_val(sys), safe_val(dia)
+    pp = s - d
+    map_v = d + (1/3 * pp)
+    return round(pp, 1), round(map_v, 1)
 
-def get_bp_status(s, d):
-    s, d = safe_int(s), safe_int(d)
-    if s < 120 and d < 80: return "Optymalne", "status-norm"
-    if s < 130 and d < 85: return "Prawidłowe", "status-norm"
-    if s < 140 or d < 90: return "Wysokie Prawidłowe", "status-warn"
-    return "Nadciśnienie", "status-alert"
-
-def get_bmi(weight, height=1.80):
-    w = safe_val(weight)
-    if w == 0: return 0, "Brak danych", "status-norm"
-    bmi = w / (height ** 2)
-    if bmi < 18.5: return bmi, "Niedowaga", "status-warn"
-    if bmi < 25: return bmi, "Waga Prawidłowa", "status-norm"
-    return bmi, "Nadwaga", "status-warn"
-
-# --- POŁĄCZENIE Z DANYMI ---
+# --- DANE ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_all = conn.read(ttl="0")
 
 if not df_all.empty:
     df_all.columns = [c.strip() for c in df_all.columns]
-    # Zapewnienie istnienia kolumny Mood
-    if 'Mood' not in df_all.columns:
-        df_all['Mood'] = None
-    
+    if 'Mood' not in df_all.columns: df_all['Mood'] = "🌿 Równowaga"
     df_all['Data'] = pd.to_datetime(df_all['Data']).dt.date
     for col in ['Waga', 'Cisnienie_S', 'Cisnienie_D', 'Tetno', 'Dawka']:
-        if col in df_all.columns:
-            df_all[col] = pd.to_numeric(df_all[col], errors='coerce')
+        if col in df_all.columns: df_all[col] = pd.to_numeric(df_all[col], errors='coerce')
 
 # --- UI ---
 st.markdown("<div class='sanctuary-title'>The Sanctuary</div>", unsafe_allow_html=True)
-st.markdown("<div class='sanctuary-subtitle'>ODDECH • RÓWNOWAGA • ZDROWIE</div>", unsafe_allow_html=True)
+st.markdown("<div class='sanctuary-subtitle'>Advanced Longevity Monitoring</div>", unsafe_allow_html=True)
 
 user = st.segmented_control("", ["Piotr", "Natalia"], default="Piotr")
 df_u = df_all[df_all['Użytkownik'] == user].sort_values("Data") if not df_all.empty else pd.DataFrame()
 
 if not df_u.empty:
     last = df_u.iloc[-1]
+    pp, map_val = calc_advanced_bp(last['Cisnienie_S'], last['Cisnienie_D'])
     
-    # --- METRYKI ---
-    st.markdown("<br>", unsafe_allow_html=True)
+    # --- METRYKI GŁÓWNE ---
     m1, m2, m3, m4 = st.columns(4)
-    with m1:
-        w_v = safe_val(last.get('Waga'))
-        bmi_v, bmi_c, bmi_s = get_bmi(w_v)
-        st.metric("MASA CIAŁA", f"{w_v:.1f} kg")
-        st.markdown(f"<span class='{bmi_s}'>{bmi_c} (BMI: {bmi_v:.1f})</span>", unsafe_allow_html=True)
-    with m2:
-        sys, dia = safe_int(last.get('Cisnienie_S')), safe_int(last.get('Cisnienie_D'))
-        bp_c, bp_s = get_bp_status(sys, dia)
-        st.metric("CIŚNIENIE", f"{sys}/{dia}")
-        st.markdown(f"<span class='{bp_s}'>{bp_c}</span>", unsafe_allow_html=True)
-    with m3:
-        p_v = safe_int(last.get('Tetno'))
-        mood_v = last.get('Mood') if pd.notna(last.get('Mood')) else "🌿 Równowaga"
-        st.metric("PULS", f"{p_v} BPM")
-        st.markdown(f"Nastrój: **{mood_v}**")
-    with m4:
-        st.metric("PROTOKÓŁ", f"{safe_val(last.get('Dawka'))} mg")
-        st.markdown("Dawka dobowa")
+    with m1: st.metric("MASA CIAŁA", f"{safe_val(last['Waga']):.1f} kg")
+    with m2: st.metric("CIŚNIENIE (SYS/DIA)", f"{int(last['Cisnienie_S'])}/{int(last['Cisnienie_D'])}")
+    with m3: st.metric("ŚREDNIE TĘTNICZE (MAP)", f"{map_val} mmHg")
+    with m4: st.metric("CIŚNIENIE TĘTNA (PP)", f"{int(pp)} mmHg")
 
-    # --- ZAKŁADKI ---
-    st.markdown("<br>", unsafe_allow_html=True)
-    tab1, tab2, tab3 = st.tabs(["📉 TWOJA ANALIZA", "📋 RAPORT MEDYCZNY", "✨ RYTUAŁY"])
+    tab1, tab2, tab3 = st.tabs(["📊 KARDIOLOGIA", "🩺 RAPORT KLINICZNY", "🌿 RYTUAŁY"])
 
     with tab1:
-        cl, cr = st.columns(2)
-        with cl:
-            valid_w = df_u['Waga'].dropna()
-            if not valid_w.empty:
-                min_w, max_w = valid_w.min() - 0.5, valid_w.max() + 0.5
-                fig_w = go.Figure()
-                fig_w.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Waga'], line=dict(color='#7c8370', width=4, shape='spline'), fill='tozeroy', fillcolor='rgba(124, 131, 112, 0.1)'))
-                fig_w.update_layout(title="Dynamika masy ciała", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=350, yaxis=dict(range=[min_w, max_w], dtick=0.5))
-                st.plotly_chart(fig_w, use_container_width=True)
-        with cr:
-            fig_p = go.Figure()
-            fig_p.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_S'], name="SYS", line=dict(color='#d98e73', width=3)))
-            fig_p.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_D'], name="DIA", line=dict(color='#7c8370', width=3)))
-            fig_p.update_layout(title="Ciśnienie tętnicze", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=350, legend=dict(orientation="h", y=1.1))
-            st.plotly_chart(fig_p, use_container_width=True)
+        st.markdown("#### Zaawansowana Analiza Przepływu")
+        # Wykres MAP i Pulse Pressure
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_S'] - df_u['Cisnienie_D'], 
+                                 name="Pulse Pressure (PP)", line=dict(color='#d98e73', dash='dot')))
+        map_series = df_u['Cisnienie_D'] + (1/3 * (df_u['Cisnienie_S'] - df_u['Cisnienie_D']))
+        fig.add_trace(go.Scatter(x=df_u['Data'], y=map_series, name="MAP (Średnie)", line=dict(color='#7c8370', width=4)))
+        
+        fig.add_hline(y=100, line_dash="dash", line_color="red", annotation_text="Górna norma MAP")
+        fig.add_hline(y=40, line_dash="dash", line_color="orange", annotation_text="Norma PP")
+        
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=450, legend=dict(orientation="h", y=1.1))
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Wskazówki automatyczne
+        c1, c2 = st.columns(2)
+        with c1:
+            if pp > 60:
+                st.warning("⚠️ Wysokie Ciśnienie Tętna (PP): Może to sugerować zwiększoną sztywność naczyń. Skonsultuj to z lekarzem przy najbliższej wizycie.")
+            else:
+                st.success("✅ Ciśnienie tętna w normie. Twoje naczynia zachowują dobrą elastyczność.")
+        with c2:
+            st.info(f"💡 Twój aktualny wskaźnik MAP to {map_val}. Norma wynosi zazwyczaj 70-100 mmHg.")
 
     with tab2:
-        st.markdown("### Podsumowanie Kliniczne")
-        r1, r2, r3 = st.columns(3)
-        with r1:
-            st.markdown(f"<div class='report-card'><b>Średnie Ciśnienie:</b><br>{int(df_u['Cisnienie_S'].mean())}/{int(df_u['Cisnienie_D'].mean())} mmHg</div>", unsafe_allow_html=True)
-        with r2:
-            st.markdown(f"<div class='report-card'><b>Zakres Wagi:</b><br>{df_u['Waga'].min():.1f} - {df_u['Waga'].max():.1f} kg</div>", unsafe_allow_html=True)
-        with r3:
-            # FIX DLA KEYERROR 0:
-            mood_modes = df_u['Mood'].dropna().mode()
-            fav_mood = mood_modes[0] if not mood_modes.empty else "🌿 Równowaga"
-            st.markdown(f"<div class='report-card'><b>Dominujący Nastrój:</b><br>{fav_mood}</div>", unsafe_allow_html=True)
-        st.table(df_u[['Data', 'Cisnienie_S', 'Cisnienie_D', 'Tetno', 'Waga', 'Dawka']].tail(10))
-        csv = df_u.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 POBIERZ CSV", csv, "raport.csv", "text/csv")
-
+        st.markdown("### Zestawienie dla Specjalisty")
+        # Obliczanie średnich z ostatnich 7 dni
+        last_7 = df_u.tail(7)
+        avg_pp = (last_7['Cisnienie_S'] - last_7['Cisnienie_D']).mean()
+        
+        st.markdown(f"""
+        <div class='report-card'>
+            <b>Średnie PP (7 dni):</b> {avg_pp:.1f} mmHg | 
+            <b>Średnie MAP (7 dni):</b> {map_series.tail(7).mean():.1f} mmHg | 
+            <b>Stabilność Pulsu:</b> {int(last_7['Tetno'].std())} (odchylenie)
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.dataframe(df_u[['Data', 'Cisnienie_S', 'Cisnienie_D', 'Tetno', 'Waga']].sort_values("Data", ascending=False), use_container_width=True)
+        
     with tab3:
-        st.info("💡 Porada SPA: Pomiar wykonuj zawsze na lewej ręce, po 5 minutach ciszy.")
-        st.write("- [ ] Medytacja poranna")
-        st.write("- [ ] Szklanka wody przed pomiarem")
+        st.markdown("#### Rytuały wspierające układ krążenia")
+        st.write("🌿 **Magnez i Potas:** Zadbaj o podaż w diecie, aby wspierać elastyczność naczyń.")
+        st.write("🌊 **Zimne prysznice:** Świetny trening dla Twoich tętnic (PP).")
+        st.write("🧘 **Oddech 4-7-8:** Wykonaj teraz 3 cykle, aby naturalnie obniżyć MAP.")
 
-# --- STOPKA ---
+# --- AKCJE ---
 st.markdown("<br>", unsafe_allow_html=True)
-b1, b2, b3 = st.columns(3)
-with b1:
-    with st.popover("🧘 NOWY POMIAR", use_container_width=True):
+col1, col2, col3 = st.columns(3)
+with col1:
+    with st.popover("🧘 DODAJ POMIAR", use_container_width=True):
         with st.form("add"):
             d = st.date_input("Data", datetime.now())
-            w = st.number_input("Waga", step=0.1, value=safe_val(df_u['Waga'].iloc[-1]) if not df_u.empty else 80.0)
-            s_v, d_v, p_v = st.number_input("SYS", value=120), st.number_input("DIA", value=80), st.number_input("Puls", value=70)
-            m_v = st.selectbox("Nastrój", ["🌿 Równowaga", "☀️ Energia", "☁️ Zmęczenie", "⚡ Stres"])
+            w = st.number_input("Waga", value=safe_val(df_u['Waga'].iloc[-1]) if not df_u.empty else 80.0, step=0.1)
+            s, di, p = st.number_input("SYS", value=120), st.number_input("DIA", value=80), st.number_input("Puls", value=70)
+            mood = st.selectbox("Nastrój", ["🌿 Spokój", "☀️ Energia", "☁️ Zmęczenie", "⚡ Stres"])
             ds = st.selectbox("Dawka (mg)", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
             if st.form_submit_button("ZAPISZ"):
-                new = pd.DataFrame([{"Użytkownik": user, "Data": d, "Waga": w, "Cisnienie_S": s_v, "Cisnienie_D": d_v, "Tetno": p_v, "Dawka": ds, "Mood": m_v}])
+                new = pd.DataFrame([{"Użytkownik": user, "Data": d, "Waga": w, "Cisnienie_S": s, "Cisnienie_D": di, "Tetno": p, "Dawka": ds, "Mood": mood}])
                 conn.update(data=pd.concat([df_all, new], ignore_index=True))
                 st.rerun()
-with b2:
+
+with col2:
     with st.popover("✨ KOREKTA", use_container_width=True):
         if not df_u.empty:
-            sd = st.selectbox("Data:", df_u['Data'].tolist()[::-1])
-            row = df_u[df_u['Data'] == sd].iloc[0]
-            with st.form("edit"):
-                ew = st.number_input("Waga", value=safe_val(row.get('Waga')))
-                es, ed = st.number_input("SYS", value=safe_int(row.get('Cisnienie_S'))), st.number_input("DIA", value=safe_int(row.get('Cisnienie_D')))
-                if st.form_submit_button("AKTUALIZUJ"):
-                    idx = df_all[(df_all['Użytkownik'] == user) & (df_all['Data'] == sd)].index
-                    df_all.loc[idx, ['Waga', 'Cisnienie_S', 'Cisnienie_D']] = [ew, es, ed]
-                    conn.update(data=df_all)
-                    st.rerun()
-with b3:
-    with st.popover("📜 HISTORIA", use_container_width=True):
-        st.dataframe(df_u.sort_values("Data", ascending=False), use_container_width=True)
+            sel_d = st.selectbox("Data:", df_u['Data'].tolist()[::-1])
+            if st.form_submit_button("USUŃ TEN WPIS (OPCJA)"): # Uproszczone dla bezpieczeństwa
+                st.warning("Funkcja usuwania w Sheets wymaga ostrożności.")
+with col3:
+    csv = df_u.to_csv(index=False).encode('utf-8')
+    st.download_button("📥 POBIERZ RAPORT", csv, "sanctuary_full_report.csv", "text/csv", use_container_width=True)
 
-st.markdown("<div style='text-align: center; margin-top: 30px; opacity: 0.4; font-size: 0.7rem;'>THE SANCTUARY • 2026</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; margin-top: 50px; opacity: 0.3; font-size: 0.7rem;'>THE SANCTUARY • BIOMETRYCZNA HARMONIA</div>", unsafe_allow_html=True)
