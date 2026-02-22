@@ -5,182 +5,167 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 
-# --- KONFIGURACJA ---
-st.set_page_config(page_title="Wellness Tracker", layout="wide", page_icon="🌿")
+# --- CONFIG ---
+st.set_page_config(page_title="BioRitual", layout="centered", page_icon="🧘")
 
-# --- WELLNESS & READABILITY CSS ---
+# --- ADVANCED WELLNESS UI (CSS) ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Quicksand:wght@400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;400;600&family=Playfair+Display:ital@1&display=swap');
 
-    /* Tło i baza - kolor lniany/spa */
-    .stApp {
-        background-color: #F8F9F7;
-        color: #4A4E4D;
+    html, body, [data-testid="stAppViewContainer"] {
+        background-color: #ffffff;
+        color: #1d1d1f;
         font-family: 'Inter', sans-serif;
     }
 
-    /* Nagłówki - Przyjazne i czytelne */
-    h1 {
-        font-family: 'Quicksand', sans-serif;
-        color: #2D3A3A !important;
-        font-weight: 600 !important;
+    /* Wyśrodkowanie wszystkiego */
+    .main .block-container {
+        max-width: 800px;
+        padding-top: 5rem;
+    }
+
+    /* Styl napisu Hero */
+    .hero-weight {
+        font-size: 8rem;
+        font-weight: 200;
+        letter-spacing: -5px;
         text-align: center;
-        padding-bottom: 1rem;
+        margin-bottom: -20px;
+        color: #1d1d1f;
     }
 
-    /* Karty Metryk - Miękkość i Czystość */
-    div[data-testid="stMetric"] {
-        background: #FFFFFF !important;
-        border: 1px solid #E2E8E4 !important;
-        border-radius: 20px !important;
-        padding: 25px !important;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.02) !important;
-    }
-    
-    label[data-testid="stMetricLabel"] {
-        font-size: 0.85rem !important;
-        text-transform: uppercase !important;
-        letter-spacing: 1px !important;
-        color: #7A8B84 !important;
+    .hero-unit {
+        font-size: 1.5rem;
+        text-align: center;
+        color: #86868b;
+        letter-spacing: 5px;
+        text-transform: uppercase;
+        margin-bottom: 3rem;
     }
 
-    /* Sidebar - Jasny i przejrzysty */
-    [data-testid="stSidebar"] {
-        background-color: #FFFFFF !important;
-        border-right: 1px solid #E2E8E4;
+    /* Subtelne karty metryk */
+    .metric-box {
+        text-align: center;
+        padding: 20px;
+        border-top: 1px solid #f2f2f2;
+        border-bottom: 1px solid #f2f2f2;
     }
 
-    /* Przyciski - Naturalna Zieleń */
+    /* Personalizacja przycisków */
     .stButton>button {
-        background-color: #7A8B84 !important;
+        background-color: #1d1d1f !important;
         color: white !important;
-        border-radius: 12px !important;
+        border-radius: 30px !important;
+        padding: 10px 25px !important;
         border: none !important;
-        padding: 10px 24px !important;
-        font-weight: 500 !important;
-        transition: 0.3s all ease;
-        width: 100%;
+        font-size: 14px !important;
+        transition: 0.4s;
     }
     
     .stButton>button:hover {
-        background-color: #5D6D66 !important;
-        box-shadow: 0 4px 12px rgba(122, 139, 132, 0.2);
+        opacity: 0.8;
+        transform: scale(0.98);
     }
 
-    /* Tabele i dataframe */
-    .stDataFrame {
-        background: white;
-        border-radius: 15px;
+    /* Formularz w expaderze */
+    .stExpander {
+        border: none !important;
+        background: #f5f5f7 !important;
+        border-radius: 20px !important;
     }
+    
+    /* Ukrycie dekoracji Streamlit */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-# --- POŁĄCZENIE Z DANYMI ---
+# --- POŁĄCZENIE ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_all = conn.read(ttl="0")
 
 if not df_all.empty:
     df_all['Data'] = pd.to_datetime(df_all['Data']).dt.date
-    # Bezpieczna konwersja na liczby
     for col in ['Waga', 'Cisnienie_S', 'Cisnienie_D', 'Dawka']:
-        if col in df_all.columns:
-            df_all[col] = pd.to_numeric(df_all[col], errors='coerce')
+        df_all[col] = pd.to_numeric(df_all[col], errors='coerce')
 
-# --- SIDEBAR ---
-with st.sidebar:
-    st.markdown("<h2 style='text-align: center; color: #7A8B84;'>🌿 Stillness</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-size: 0.8rem;'>TWÓJ DZIENNIK HARMONII</p>", unsafe_allow_html=True)
-    st.divider()
-    
-    user = st.radio("Aktywny profil:", ["Piotr", "Natalia"])
-    
-    st.markdown("### NOWY WPIS")
-    with st.form("wellness_form", clear_on_submit=True):
-        d = st.date_input("Data", datetime.now())
-        w = st.number_input("Waga (kg)", min_value=40.0, step=0.1)
-        
-        st.markdown("**CIŚNIENIE TĘTNICZE**")
-        c1, c2 = st.columns(2)
-        sys = c1.number_input("Skurczowe", value=120)
-        dia = c2.number_input("Rozkurczowe", value=80)
-        
-        ds = st.selectbox("Dawka Ozempic (mg)", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
-        mood = st.slider("Samopoczucie (1-10)", 1, 10, 8)
-        note = st.text_area("Twoje myśli / Notatki")
-        
-        if st.form_submit_button("ZAPISZ DANE"):
-            new_row = pd.DataFrame([{
-                "Użytkownik": user, "Data": d, "Waga": w, 
-                "Cisnienie_S": sys, "Cisnienie_D": dia, 
-                "Dawka": ds, "Samopoczucie": mood, "Notatki": note
-            }])
-            conn.update(data=pd.concat([df_all, new_row], ignore_index=True))
-            st.rerun()
-
-# --- INTERFEJS GŁÓWNY ---
-st.markdown(f"<h1>Witaj w równowadze, {user}</h1>", unsafe_allow_html=True)
-
+# --- HEADER / NAVIGATION ---
+user = st.segmented_control("Operator", ["Piotr", "Natalia"], default="Piotr")
 df_u = df_all[df_all['Użytkownik'] == user].sort_values("Data") if not df_all.empty else pd.DataFrame()
 
+# --- HERO SECTION ---
 if not df_u.empty:
-    # --- METRYKI ---
-    col1, col2, col3, col4 = st.columns(4)
-    
     curr_w = df_u['Waga'].iloc[-1]
-    first_w = df_u['Waga'].iloc[0]
+    st.markdown(f"<div class='hero-weight'>{curr_w:.1f}</div>", unsafe_allow_html=True)
+    st.markdown("<div class='hero-unit'>Kilogramów</div>", unsafe_allow_html=True)
+
+    # Poziome metryki
+    c1, c2, c3 = st.columns(3)
     
-    try:
-        sys_val = int(df_u['Cisnienie_S'].dropna().iloc[-1])
-        dia_val = int(df_u['Cisnienie_D'].dropna().iloc[-1])
-        bp_text = f"{sys_val}/{dia_val}"
-    except:
-        bp_text = "---"
-
-    col1.metric("AKTUALNA WAGA", f"{curr_w} kg", f"{curr_w - first_w:.1f} kg", delta_color="inverse")
-    col2.metric("OSTATNIE CIŚNIENIE", bp_text)
-    col3.metric("BIEŻĄCA DAWKA", f"{df_u['Dawka'].iloc[-1]} mg")
-    col4.metric("SESJA NR", len(df_u))
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # --- WYKRESY (CZYTELNE I DELIKATNE) ---
-    t1, t2 = st.tabs(["📉 TREND WAGI", "❤️ ANALIZA SERCA"])
-    
-    with t1:
-        fig_w = go.Figure()
-        fig_w.add_trace(go.Scatter(
-            x=df_u['Data'], y=df_u['Waga'],
-            mode='lines+markers',
-            line=dict(color='#7A8B84', width=3),
-            marker=dict(size=8, color='#FFFFFF', line=dict(width=2, color='#7A8B84')),
-            name="Waga"
-        ))
-        fig_w.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(showgrid=False), yaxis=dict(gridcolor='#F0F2F0')
-        )
-        st.plotly_chart(fig_w, use_container_width=True)
-
-    with t2:
-        fig_p = go.Figure()
-        fig_p.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_S'], name="Skurczowe", line=dict(color='#D98E73', width=2)))
-        fig_p.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_D'], name="Rozkurczowe", line=dict(color='#7A8B84', width=2)))
+    with c1:
+        try:
+            sys = int(df_u['Cisnienie_S'].dropna().iloc[-1])
+            dia = int(df_u['Cisnienie_D'].dropna().iloc[-1])
+            st.caption("CIŚNIENIE")
+            st.markdown(f"**{sys}/{dia}**")
+        except:
+            st.caption("CIŚNIENIE")
+            st.markdown("**--**")
+            
+    with c2:
+        st.caption("DAWKA")
+        st.markdown(f"**{df_u['Dawka'].iloc[-1]} mg**")
         
-        # Komfortowa strefa ciśnienia
-        fig_p.add_hrect(y0=60, y1=125, fillcolor="#7A8B84", opacity=0.05, layer="below", line_width=0)
+    with c3:
+        diff = curr_w - df_u['Waga'].iloc[0]
+        st.caption("ZMIANA")
+        st.markdown(f"**{diff:.1f} kg**")
+
+st.markdown("<br><br>", unsafe_allow_html=True)
+
+# --- WYKRESY (MINIMAL) ---
+if not df_u.empty:
+    # Wykres wagi - tylko czysta linia
+    fig_w = go.Figure()
+    fig_w.add_trace(go.Scatter(
+        x=df_u['Data'], y=df_u['Waga'],
+        mode='lines',
+        line=dict(color='#1d1d1f', width=2),
+        fill='tozeroy',
+        fillcolor='rgba(0,0,0,0.02)'
+    ))
+    fig_w.update_layout(
+        height=250, margin=dict(l=0,r=0,t=0,b=0),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=True),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
+    )
+    st.plotly_chart(fig_w, use_container_width=True, config={'displayModeBar': False})
+
+# --- AKCJA I HISTORIA ---
+st.markdown("<br>", unsafe_allow_html=True)
+with st.expander("➕ DODAJ NOWY WPIS"):
+    with st.form("quick_add", clear_on_submit=True):
+        col_a, col_b = st.columns(2)
+        d = col_a.date_input("Data", datetime.now())
+        w = col_b.number_input("Waga", min_value=40.0, step=0.1)
         
-        fig_p.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            legend=dict(orientation="h", y=1.1, x=1)
-        )
-        st.plotly_chart(fig_p, use_container_width=True)
+        col_c, col_d = st.columns(2)
+        s_s = col_c.number_input("Skurczowe", value=120)
+        s_d = col_d.number_input("Rozkurczowe", value=80)
+        
+        dose = st.selectbox("Dawka (mg)", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
+        note = st.text_input("Krótka notatka")
+        
+        if st.form_submit_button("ZAPISZ"):
+            new_r = pd.DataFrame([{"Użytkownik": user, "Data": d, "Waga": w, "Cisnienie_S": s_s, "Cisnienie_D": s_d, "Dawka": dose, "Samopoczucie": 8, "Notatki": note}])
+            conn.update(data=pd.concat([df_all, new_r], ignore_index=True))
+            st.rerun()
 
-    # --- HISTORIA ---
-    st.markdown("### 📋 TWOJA HISTORIA")
-    st.dataframe(df_u.sort_values("Data", ascending=False), use_container_width=True)
+st.markdown("<br><br>", unsafe_allow_html=True)
+with st.expander("📑 ZOBACZ HISTORIĘ"):
+    st.table(df_u.sort_values("Data", ascending=False).head(10)[["Data", "Waga", "Cisnienie_S", "Cisnienie_D", "Dawka"]])
 
-else:
-    st.info("Zacznij swoją podróż wellness, dodając pierwszy wpis w panelu po lewej stronie.")
-
-st.markdown("<br><p style='text-align: center; color: #7A8B84; font-size: 0.8rem;'>STILLNESS WELLNESS SYSTEM | ODDECH • ZDROWIE • POSTĘP</p>", unsafe_allow_html=True)
+st.markdown(f"<p style='text-align: center; color: #86868b; font-family: Playfair Display; font-style: italic; margin-top: 5rem;'>Twoja podróż do zdrowia, {user}.</p>", unsafe_allow_html=True)
