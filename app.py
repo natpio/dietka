@@ -12,86 +12,65 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&family=Inter:wght@300;400&display=swap');
 
-    /* Tło luksusowego gabinetu */
     .stApp {
         background: radial-gradient(circle at top right, #f2ece4, #e8e0d5);
         color: #5d5750;
         font-family: 'Inter', sans-serif;
     }
 
-    /* Nagłówek w stylu boutique hotel */
     .sanctuary-title {
         font-family: 'Playfair Display', serif;
         font-size: 3.5rem;
         font-style: italic;
         text-align: center;
         color: #4a4540;
-        padding: 40px 0;
+        padding: 30px 0;
         letter-spacing: -1px;
     }
 
-    /* Szklane, organiczne karty */
+    /* Szklane, luksusowe karty */
     div[data-testid="stMetric"] {
         background: rgba(255, 255, 255, 0.4) !important;
         border: 1px solid rgba(255, 255, 255, 0.8) !important;
-        border-radius: 40px !important;
-        padding: 30px !important;
-        box-shadow: 0 15px 35px rgba(0,0,0,0.02) !important;
+        border-radius: 35px !important;
+        padding: 25px !important;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.02) !important;
     }
 
-    /* Tabs - minimalistyczne i lekkie */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 30px;
-        justify-content: center;
-        border-bottom: none;
-    }
-
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] { gap: 30px; justify-content: center; border-bottom: none; }
     .stTabs [data-baseweb="tab"] {
-        font-family: 'Inter', sans-serif;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-        font-size: 0.8rem;
-        background: transparent !important;
-        border: none !important;
-        color: #8c857e !important;
+        text-transform: uppercase; letter-spacing: 2px; font-size: 0.75rem;
+        background: transparent !important; color: #8c857e !important;
     }
+    .stTabs [aria-selected="true"] { color: #5d5750 !important; font-weight: 600 !important; }
 
-    .stTabs [aria-selected="true"] {
-        color: #5d5750 !important;
-        font-weight: 600 !important;
-    }
-
-    /* Przyciski jak z luksusowego menu */
+    /* Przyciski */
     .stButton>button {
-        background: #7c8370 !important;
-        color: #fdfcfb !important;
-        border-radius: 50px !important;
-        padding: 15px 35px !important;
-        font-family: 'Inter', sans-serif;
-        font-weight: 300;
-        letter-spacing: 1px;
-        border: none !important;
-        transition: all 0.5s ease;
+        background: #7c8370 !important; color: white !important;
+        border-radius: 50px !important; padding: 12px 30px !important;
+        border: none !important; transition: 0.4s;
     }
+    .stButton>button:hover { background: #5d6354 !important; transform: translateY(-2px); }
 
-    .stButton>button:hover {
-        background: #5d6354 !important;
-        box-shadow: 0 10px 20px rgba(124, 131, 112, 0.2);
-    }
-
-    /* Ukrycie technicznych elementów Streamlit */
     header, footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-# --- SAFE DATA CONVERSION ---
-def safe_val(val, default=None, is_int=False):
+# --- POMOCNICZE FUNKCJE BEZPIECZEŃSTWA ---
+def safe_val(val, default=0.0):
     try:
-        if pd.isna(val) or val == "": return default
-        return int(float(val)) if is_int else float(val)
-    except: return default
+        if pd.isna(val) or val == "": return float(default)
+        return float(val)
+    except: return float(default)
 
-# --- CONNECTION ---
+def safe_int(val, default=0):
+    try:
+        if pd.isna(val) or val == "": return int(default)
+        return int(float(val))
+    except: return int(default)
+
+# --- POŁĄCZENIE ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 df_all = conn.read(ttl="0")
 
@@ -108,51 +87,33 @@ df_u = df_all[df_all['Użytkownik'] == user].sort_values("Data") if not df_all.e
 if not df_u.empty:
     last = df_u.iloc[-1]
     
-    # --- VITAL STATUS GRID ---
+    # --- VITAL STATUS ---
     st.markdown("<br>", unsafe_allow_html=True)
     m1, m2, m3, m4 = st.columns(4)
     
-    with m1:
-        st.metric("RÓWNOWAGA MASY", f"{safe_val(last.get('Waga'), 0.0):.1f} kg")
-    with m2:
-        s, d = safe_val(last.get('Cisnienie_S'), 0, True), safe_val(last.get('Cisnienie_D'), 0, True)
-        st.metric("RYTM SERCA", f"{s}/{d}" if s and d else "--")
-    with m3:
-        hr = safe_val(last.get('Tetno'), 0, True)
-        st.metric("PULS SPOKOJU", f"{hr} BPM" if hr else "--")
-    with m4:
-        st.metric("PROTOKÓŁ", f"{last.get('Dawka', 0)} mg")
+    m1.metric("RÓWNOWAGA MASY", f"{safe_val(last.get('Waga')):.1f} kg")
+    s, d = safe_int(last.get('Cisnienie_S')), safe_int(last.get('Cisnienie_D'))
+    m2.metric("RYTM SERCA", f"{s}/{d}" if s and d else "--")
+    hr = safe_int(last.get('Tetno'))
+    m3.metric("PULS SPOKOJU", f"{hr} BPM" if hr else "--")
+    m4.metric("PROTOKÓŁ", f"{safe_val(last.get('Dawka'))} mg")
 
-    # --- THE JOURNEY (CHARTS) ---
-    st.markdown("<br><br>", unsafe_allow_html=True)
-    t1, t2 = st.tabs(["TWOJA SYLWETKA", "TWOJA WITALNOŚĆ"])
+    # --- THE JOURNEY ---
+    st.markdown("<br>", unsafe_allow_html=True)
+    tab_w, tab_v = st.tabs(["TWOJA SYLWETKA", "TWOJA WITALNOŚĆ"])
 
-    with t1:
+    with tab_w:
         fig_w = go.Figure()
-        fig_w.add_trace(go.Scatter(
-            x=df_u['Data'], y=df_u['Waga'],
-            line=dict(color='#a8a29a', width=2, shape='spline'),
-            fill='tozeroy', fillcolor='rgba(168, 162, 154, 0.05)',
-            mode='lines+markers', marker=dict(size=6, color='#7c8370')
-        ))
-        fig_w.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            margin=dict(l=0,r=0,t=10,b=0), height=350,
-            xaxis=dict(showgrid=False, color='#8c857e'),
-            yaxis=dict(gridcolor='rgba(0,0,0,0.05)', color='#8c857e')
-        )
+        fig_w.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Waga'], line=dict(color='#7c8370', width=3, shape='spline'), fill='tozeroy', fillcolor='rgba(124, 131, 112, 0.05)'))
+        fig_w.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=380, margin=dict(l=0,r=0,t=0,b=0))
         st.plotly_chart(fig_w, use_container_width=True)
 
-    with t2:
+    with tab_v:
         fig_v = go.Figure()
-        fig_v.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_S'], name="SYS", line=dict(color='#c2b8ad', width=3, shape='spline')))
-        fig_v.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_D'], name="DIA", line=dict(color='#7c8370', width=3, shape='spline')))
-        fig_v.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Tetno'], name="BPM", mode='markers', marker=dict(color='#d4af37', size=8, opacity=0.6)))
-        fig_v.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            margin=dict(l=0,r=0,t=10,b=0), height=350,
-            legend=dict(orientation="h", y=1.2, x=0.5, xanchor="center")
-        )
+        fig_v.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_S'], name="Skurczowe", line=dict(color='#c2b8ad', width=3, shape='spline')))
+        fig_v.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_D'], name="Rozkurczowe", line=dict(color='#7c8370', width=3, shape='spline')))
+        fig_v.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Tetno'], name="Puls", mode='markers', marker=dict(color='#d4af37', size=10, opacity=0.5)))
+        fig_v.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=380, legend=dict(orientation="h", y=1.1, x=0.5, xanchor="center"))
         st.plotly_chart(fig_v, use_container_width=True)
 
 # --- RITUAL ACTIONS ---
@@ -161,35 +122,41 @@ c1, c2, c3 = st.columns(3)
 
 with c1:
     with st.popover("🧘 NOWY WPIS", use_container_width=True):
-        with st.form("add"):
+        with st.form("add_ritual"):
             d = st.date_input("Data rytuału", datetime.now())
             w = st.number_input("Masa ciała", step=0.1)
             cs, cd, ct = st.columns(3)
-            s_val = cs.number_input("SYS", value=120)
-            d_val = cd.number_input("DIA", value=80)
-            t_val = ct.number_input("Puls", value=70)
-            dose = st.selectbox("Dawka (mg)", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
-            if st.form_submit_button("ZAPISZ"):
-                new = pd.DataFrame([{"Użytkownik": user, "Data": d, "Waga": w, "Cisnienie_S": s_val, "Cisnienie_D": d_val, "Tetno": t_val, "Dawka": dose}])
+            s_v = cs.number_input("SYS", value=120)
+            d_v = cd.number_input("DIA", value=80)
+            t_v = ct.number_input("Puls", value=70)
+            ds = st.selectbox("Dawka (mg)", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
+            if st.form_submit_button("ZAPISZ W DZIENNIKU"):
+                new = pd.DataFrame([{"Użytkownik": user, "Data": d, "Waga": w, "Cisnienie_S": s_v, "Cisnienie_D": d_v, "Tetno": t_v, "Dawka": ds}])
                 conn.update(data=pd.concat([df_all, new], ignore_index=True))
                 st.rerun()
 
 with c2:
     with st.popover("✨ KOREKTA", use_container_width=True):
         if not df_u.empty:
-            sel_date = st.selectbox("Wybierz moment:", df_u['Data'].tolist()[::-1])
+            dates = df_u['Data'].tolist()
+            sel_date = st.selectbox("Moment do zmiany:", dates[::-1])
             row = df_u[df_u['Data'] == sel_date].iloc[0]
-            with st.form("edit"):
-                ew = st.number_input("Waga", value=safe_val(row['Waga'], 0.0))
+            with st.form("edit_ritual"):
+                ew = st.number_input("Waga", value=safe_val(row.get('Waga')))
                 es, ed, et = st.columns(3)
-                esys = es.number_input("SYS", value=safe_int(row.get('Cisnienie_S'), 120)) # Użyjemy safe_int z poprzedniej wersji
-                # ... analogicznie reszta pól ...
+                esys = es.number_input("SYS", value=safe_int(row.get('Cisnienie_S'), 120))
+                edia = ed.number_input("DIA", value=safe_int(row.get('Cisnienie_D'), 80))
+                etet = et.number_input("Puls", value=safe_int(row.get('Tetno'), 70))
+                edose = st.selectbox("Dawka", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0], 
+                                     index=[0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0].index(safe_val(row.get('Dawka'))) if safe_val(row.get('Dawka')) in [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0] else 0)
                 if st.form_submit_button("AKTUALIZUJ"):
-                    # Logika aktualizacji (taka jak poprzednio)
-                    pass
+                    idx = df_all[(df_all['Użytkownik'] == user) & (df_all['Data'] == sel_date)].index
+                    df_all.loc[idx, ['Waga', 'Cisnienie_S', 'Cisnienie_D', 'Tetno', 'Dawka']] = [ew, esys, edia, etet, edose]
+                    conn.update(data=df_all)
+                    st.rerun()
 
 with c3:
     with st.popover("📜 ARCHIWUM", use_container_width=True):
         st.dataframe(df_u.sort_values("Data", ascending=False), use_container_width=True)
 
-st.markdown("<div style='text-align: center; margin-top: 50px; opacity: 0.5; font-size: 0.7rem; letter-spacing: 3px;'>ODDECH • RÓWNOWAGA • ZDROWIE</div>", unsafe_allow_html=True)
+st.markdown("<div style='text-align: center; margin-top: 50px; opacity: 0.4; font-size: 0.7rem; letter-spacing: 3px; color: #4a4540;'>ODDECH • RÓWNOWAGA • ZDROWIE</div>", unsafe_allow_html=True)
