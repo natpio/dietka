@@ -15,7 +15,7 @@ st.set_page_config(
 # --- 2. PERSONALIZACJA PROFILI ---
 USER_PROFILES = {
     "Piotr": {"height": 1.70, "age": 38, "gender": "male"},
-    "Natalia": {"height": 1.62, "age": 38, "gender": "female"}
+    "Natalia": {"height": 1.62, "age": 37, "gender": "female"}
 }
 
 # --- 3. ORGANIC SANCTUARY STYLE (FULL CSS) ---
