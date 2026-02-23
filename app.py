@@ -18,7 +18,7 @@ USER_PROFILES = {
     "Natalia": {"height": 1.62, "age": 37, "gender": "female"}
 }
 
-# --- 3. ORGANIC SANCTUARY STYLE (FULL CSS) ---
+# --- 3. ORGANIC SANCTUARY STYLE ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&family=Inter:wght@300;400;600&display=swap');
@@ -51,6 +51,9 @@ st.markdown("""
     .status-alert { color: #b04b4b; font-weight: 600; }
 
     header, footer {visibility: hidden;}
+    
+    /* Usunięcie obramowania tabel */
+    .stDataFrame { border: none !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -73,20 +76,32 @@ def get_bmi_category(bmi):
     if bmi < 30: return "Nadwaga", "status-warn"
     return "Otyłość", "status-alert"
 
-def get_advanced_metrics(sys, dia, weight, height):
-    s, d, w = safe_val(sys), safe_val(dia), safe_val(weight)
-    pp = s - d if s > 0 else 0
-    map_v = d + (1/3 * pp) if s > 0 else 0
-    bmi = w / (height ** 2) if w > 0 else 0
-    return round(pp, 1), round(map_v, 1), round(bmi, 1)
+def calculate_metrics(df, height):
+    """Oblicza PP, MAP i BMI dla całego DataFrame."""
+    if df.empty:
+        return df
+    df = df.copy()
+    # Konwersja na numeryczne dla pewności obliczeń
+    for col in ['Cisnienie_S', 'Cisnienie_D', 'Waga']:
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    
+    df['PP'] = df['Cisnienie_S'] - df['Cisnienie_D']
+    df['MAP'] = df['Cisnienie_D'] + (1/3 * df['PP'])
+    df['BMI'] = df['Waga'] / (height ** 2)
+    return df
 
 # --- 5. POŁĄCZENIE Z DANYMI ---
-conn = st.connection("gsheets", type=GSheetsConnection)
-df_all = conn.read(ttl="0")
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df_all = conn.read(ttl="0")
+except Exception as e:
+    st.error(f"Błąd połączenia z bazą: {e}")
+    df_all = pd.DataFrame()
 
 if not df_all.empty:
     df_all.columns = [c.strip() for c in df_all.columns]
     if 'Mood' not in df_all.columns: df_all['Mood'] = "🌿 Równowaga"
+    # Normalizacja daty
     df_all['Data'] = pd.to_datetime(df_all['Data']).dt.date
     for col in ['Waga', 'Cisnienie_S', 'Cisnienie_D', 'Tetno', 'Dawka']:
         if col in df_all.columns:
@@ -98,16 +113,20 @@ st.markdown("<div class='sanctuary-subtitle'>PERSONAL VITALITY HUB</div>", unsaf
 
 user = st.segmented_control("", ["Piotr", "Natalia"], default="Piotr")
 
-# Pobranie parametrów profilu
+# Parametry profilu
 current_height = USER_PROFILES[user]["height"]
 current_age = USER_PROFILES[user]["age"]
 
+# Filtrowanie i obliczenia dla konkretnego użytkownika
 df_u = df_all[df_all['Użytkownik'] == user].sort_values("Data") if not df_all.empty else pd.DataFrame()
+df_u = calculate_metrics(df_u, current_height)
 
 if not df_u.empty:
     last = df_u.iloc[-1]
-    pp, map_val, bmi = get_advanced_metrics(last.get('Cisnienie_S'), last.get('Cisnienie_D'), last.get('Waga'), current_height)
-    bmi_label, bmi_class = get_bmi_category(bmi)
+    bmi_val = round(last['BMI'], 1)
+    bmi_label, bmi_class = get_bmi_category(bmi_val)
+    map_val = round(last['MAP'], 1)
+    pp_val = int(last['PP'])
     
     # --- PANEL GŁÓWNYCH METRYK ---
     st.markdown("<br>", unsafe_allow_html=True)
@@ -115,7 +134,7 @@ if not df_u.empty:
     
     with m1:
         st.metric("MASA CIAŁA", f"{safe_val(last.get('Waga')):.1f} kg")
-        st.markdown(f"<span class='{bmi_class}'>{bmi_label} (BMI: {bmi})</span>", unsafe_allow_html=True)
+        st.markdown(f"<span class='{bmi_class}'>{bmi_label} (BMI: {bmi_val})</span>", unsafe_allow_html=True)
         
     with m2:
         st.metric("CIŚNIENIE", f"{safe_int(last.get('Cisnienie_S'))}/{safe_int(last.get('Cisnienie_D'))}")
@@ -127,8 +146,8 @@ if not df_u.empty:
         st.markdown(f"Status perfuzji: **{map_status}**")
         
     with m4:
-        st.metric("TĘTNA (PP)", f"{int(pp)} mmHg")
-        pp_class = "Elastyczne" if pp <= 60 else "Sztywne"
+        st.metric("CIŚNIENIE TĘTNA", f"{pp_val} mmHg")
+        pp_class = "Elastyczne" if pp_val <= 60 else "Sztywne"
         st.markdown(f"Naczynia: **{pp_class}**")
 
     # --- WYKRESY ---
@@ -141,62 +160,92 @@ if not df_u.empty:
             v_w = df_u['Waga'].dropna()
             if not v_w.empty:
                 fig_w = go.Figure()
-                fig_w.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Waga'], name="Waga", line=dict(color='#7c8370', width=4, shape='spline'), fill='tozeroy', fillcolor='rgba(124, 131, 112, 0.1)'))
-                fig_w.update_layout(title="Masa ciała (kg)", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=380, yaxis=dict(range=[v_w.min()-1, v_w.max()+1]))
+                fig_w.add_trace(go.Scatter(
+                    x=df_u['Data'], y=df_u['Waga'], name="Waga", 
+                    line=dict(color='#7c8370', width=4, shape='spline'), 
+                    fill='tozeroy', fillcolor='rgba(124, 131, 112, 0.1)'
+                ))
+                fig_w.update_layout(
+                    title="Masa ciała (kg)", 
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+                    height=380, margin=dict(l=20, r=20, t=40, b=20),
+                    yaxis=dict(range=[v_w.min()-1, v_w.max()+1])
+                )
                 st.plotly_chart(fig_w, use_container_width=True)
         with c_r:
             fig_p = go.Figure()
-            fig_p.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_S'], name="SYS", line=dict(color='#d98e73', width=3)))
-            fig_p.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_D'], name="DIA", line=dict(color='#7c8370', width=3)))
-            fig_p.update_layout(title="Ciśnienie tętnicze", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=380)
+            fig_p.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_S'], name="SYS (Skurczowe)", line=dict(color='#d98e73', width=3)))
+            fig_p.add_trace(go.Scatter(x=df_u['Data'], y=df_u['Cisnienie_D'], name="DIA (Rozkurczowe)", line=dict(color='#7c8370', width=3)))
+            fig_p.update_layout(title="Ciśnienie tętnicze", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=380, margin=dict(l=20, r=20, t=40, b=20))
             st.plotly_chart(fig_p, use_container_width=True)
 
     with t2:
         st.markdown("#### Zaawansowana hemodynamika")
-        
         fig_adv = go.Figure()
-        df_u['PP_v'] = df_u['Cisnienie_S'] - df_u['Cisnienie_D']
-        df_u['MAP_v'] = df_u['Cisnienie_D'] + (1/3 * df_u['PP_v'])
-        fig_adv.add_trace(go.Scatter(x=df_u['Data'], y=df_u['MAP_v'], name="MAP (Średnie)", line=dict(color='#7c8370', width=4)))
-        fig_adv.add_trace(go.Scatter(x=df_u['Data'], y=df_u['PP_v'], name="PP (Tętna)", line=dict(color='#d98e73', dash='dot')))
-        fig_adv.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=400)
+        fig_adv.add_trace(go.Scatter(x=df_u['Data'], y=df_u['MAP'], name="MAP (Średnie)", line=dict(color='#7c8370', width=4)))
+        fig_adv.add_trace(go.Scatter(x=df_u['Data'], y=df_u['PP'], name="PP (Ciśnienie Tętna)", line=dict(color='#d98e73', dash='dot')))
+        fig_adv.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=400, margin=dict(l=20, r=20, t=40, b=20))
         st.plotly_chart(fig_adv, use_container_width=True)
 
     with t3:
-        st.dataframe(df_u[['Data', 'Cisnienie_S', 'Cisnienie_D', 'Tetno', 'Waga', 'Dawka', 'Mood']].sort_values("Data", ascending=False), use_container_width=True)
+        # Wyświetlamy najważniejsze kolumny w raporcie
+        cols_to_show = ['Data', 'Cisnienie_S', 'Cisnienie_D', 'Tetno', 'Waga', 'Dawka', 'Mood']
+        st.dataframe(df_u[cols_to_show].sort_values("Data", ascending=False), use_container_width=True)
 
-# --- PANEL AKCJI ---
+# --- 7. PANEL AKCJI ---
 st.markdown("<br>", unsafe_allow_html=True)
 ca, ce, ch = st.columns(3)
+
 with ca:
     with st.popover("🧘 NOWY POMIAR", use_container_width=True):
         with st.form("add"):
             d = st.date_input("Data", datetime.now())
-            w = st.number_input("Waga", value=safe_val(df_u['Waga'].iloc[-1]) if not df_u.empty else 70.0, step=0.1)
-            s = st.number_input("SYS", value=120)
-            di = st.number_input("DIA", value=80)
-            p = st.number_input("Puls", value=70)
+            w = st.number_input("Waga (kg)", value=safe_val(df_u['Waga'].iloc[-1]) if not df_u.empty else 70.0, step=0.1, min_value=30.0, max_value=200.0)
+            s = st.number_input("SYS (Skurczowe)", value=120, min_value=60, max_value=250)
+            di = st.number_input("DIA (Rozkurczowe)", value=80, min_value=30, max_value=150)
+            p = st.number_input("Puls", value=70, min_value=30, max_value=220)
             mo = st.selectbox("Nastrój", ["🌿 Spokój", "☀️ Energia", "☁️ Zmęczenie", "⚡ Stres"])
             dw = st.selectbox("Dawka (mg)", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
-            if st.form_submit_button("ZAPISZ"):
-                new = pd.DataFrame([{"Użytkownik": user, "Data": d, "Waga": w, "Cisnienie_S": s, "Cisnienie_D": di, "Tetno": p, "Dawka": dw, "Mood": mo}])
-                conn.update(data=pd.concat([df_all, new], ignore_index=True))
+            
+            if st.form_submit_button("ZAPISZ W BAZIE"):
+                new_row = pd.DataFrame([{
+                    "Użytkownik": user, 
+                    "Data": d, 
+                    "Waga": w, 
+                    "Cisnienie_S": s, 
+                    "Cisnienie_D": di, 
+                    "Tetno": p, 
+                    "Dawka": dw, 
+                    "Mood": mo
+                }])
+                updated_df = pd.concat([df_all, new_row], ignore_index=True)
+                conn.update(data=updated_df)
+                st.success("Dane zapisane!")
                 st.rerun()
 
 with ce:
     with st.popover("✨ KOREKTA", use_container_width=True):
         if not df_u.empty:
-            sel_d = st.selectbox("Data:", df_u['Data'].tolist()[::-1])
+            # Wybór daty do edycji (tylko daty obecne u danego użytkownika)
+            available_dates = df_u['Data'].tolist()[::-1]
+            sel_d = st.selectbox("Wybierz datę do poprawy:", available_dates)
             row = df_u[df_u['Data'] == sel_d].iloc[0]
+            
             with st.form("edit"):
                 ew = st.number_input("Waga", value=safe_val(row.get('Waga')))
                 es = st.number_input("SYS", value=safe_int(row.get('Cisnienie_S')))
                 ed = st.number_input("DIA", value=safe_int(row.get('Cisnienie_D')))
+                
                 if st.form_submit_button("AKTUALIZUJ"):
+                    # Znalezienie indeksu w głównym DataFrame
                     idx = df_all[(df_all['Użytkownik'] == user) & (df_all['Data'] == sel_d)].index
-                    df_all.loc[idx, ['Waga', 'Cisnienie_S', 'Cisnienie_D']] = [ew, es, ed]
-                    conn.update(data=df_all)
-                    st.rerun()
+                    if not idx.empty:
+                        df_all.loc[idx, ['Waga', 'Cisnienie_S', 'Cisnienie_D']] = [ew, es, ed]
+                        conn.update(data=df_all)
+                        st.success("Dane zaktualizowane!")
+                        st.rerun()
+        else:
+            st.write("Brak danych do edycji.")
 
 with ch:
-    st.markdown("<div style='text-align: center; opacity: 0.3; font-size: 0.7rem;'>THE SANCTUARY v2.2<br>Piotr (170cm) & Natalia (162cm)</div>", unsafe_allow_html=True)
+    st.markdown(f"<div style='text-align: center; opacity: 0.3; font-size: 0.7rem;'>THE SANCTUARY v2.2<br>{user} ({int(current_height*100)}cm)</div>", unsafe_allow_html=True)
